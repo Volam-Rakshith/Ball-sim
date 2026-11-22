@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tether Ball Simulation Studio</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #181b24;
+      --border: #2a2f3d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .canvas-wrap {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      border: 1px solid var(--border);
+      background: #f5efe4;
+      width: min(92vw, 405px);
+      aspect-ratio: 9 / 16;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .controls {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: min(92vw, 380px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.3px; }
+    .sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    label span { color: var(--text); font-weight: 600; }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #090d16; }
+    .btn-secondary { background: #262b38; color: var(--text); }
+    .btn-record { background: var(--success); color: #052e16; grid-column: span 2; }
+    .btn-record.recording { background: var(--danger); color: #fff; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+    .status { font-size: 0.8rem; color: var(--muted); text-align: center; min-height: 18px; }
+  </style>
+</head>
+<body>
+
+  <div class="canvas-wrap">
+    <!-- Native 1080x1920 resolution for crisp Reels/Shorts export -->
+    <canvas id="simCanvas" width="1080" height="1920"></canvas>
+  </div>
+
+  <div class="controls">
+    <div>
+      <h1>Tether Ball Simulation</h1>
+      <div class="sub">1080×1920 • Zero Watermark • Web Audio Synth</div>
+    </div>
+
+    <div class="control-group">
+      <label>Ball Count <span id="valBalls">5</span></label>
+      <input type="range" id="ballCount" min="2" max="12" value="5" />
+    </div>
+
+    <div class="control-group">
+      <label>Speed / Energy <span id="valSpeed">1.0x</span></label>
+      <input type="range" id="speedScale" min="0.4" max="2.2" step="0.1" value="1.0" />
+    </div>
+
+    <div class="control-group">
+      <label>Gravity <span id="valGrav">0.28</span></label>
+      <input type="range" id="gravity" min="0" max="0.8" step="0.02" value="0.28" />
+    </div>
+
+    <div class="control-group">
+      <label>Max Strings per Ball <span id="valStrings">45</span></label>
+      <input type="range" id="maxStrings" min="10" max="120" step="5" value="45" />
+    </div>
+
+    <div class="control-group">
+      <label>Theme</label>
+      <select id="themeSelect">
+        <option value="cream">Classic Cream (Viral Style)</option>
+        <option value="dark">Obsidian Dark Mode</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Synth Instrument</label>
+      <select id="soundSelect">
+        <option value="marimba">Marimba / Kalimba Scale</option>
+        <option value="harp">Soft Harp</option>
+        <option value="mute">Muted</option>
+      </select>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="resetBtn">Reset & Shuffle</button>
+      <button class="btn-primary" id="audioBtn">Enable Sound</button>
+      <button class="btn-record" id="recordBtn">● Record & Download Video</button>
+    </div>
+    <div class="status" id="statusText">Tap "Enable Sound" before recording to capture audio.</div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const CX = W / 2;
+  const CY = H / 2;
+  const ARENA_R = 455;
+
+  // Controls
+  const elBalls = document.getElementById('ballCount');
+  const elSpeed = document.getElementById('speedScale');
+  const elGrav = document.getElementById('gravity');
+  const elStrings = document.getElementById('maxStrings');
+  const elTheme = document.getElementById('themeSelect');
+  const elSound = document.getElementById('soundSelect');
+  const statusText = document.getElementById('statusText');
+
+  const PALETTE = [
+    { main: '#c59227', light: '#f6d378', dark: '#6d4c09' }, // Gold
+    { main: '#65267a', light: '#b56fd1', dark: '#310d3d' }, // Purple
+    { main: '#1e6f50', light: '#57c498', dark: '#0b3625' }, // Emerald
+    { main: '#24588a', light: '#68a6e3', dark: '#0e2945' }, // Royal Blue
+    { main: '#262629', light: '#6e6e75', dark: '#09090a' }, // Charcoal
+    { main: '#7a1c24', light: '#d45963', dark: '#3b090d' }, // Crimson
+    { main: '#b84a14', light: '#f28b57', dark: '#571e03' }, // Burnt Orange
+    { main: '#0e7490', light: '#67e8f9', dark: '#164e63' }, // Cyan
+    { main: '#4d7c0f', light: '#bef264', dark: '#1a2e05' }, // Olive
+    { main: '#86198f', light: '#f0abfc', dark: '#4a044e' }, // Magenta
+    { main: '#4338ca', light: '#a5b4fc', dark: '#1e1b4b' }, // Indigo
+    { main: '#9f1239', light: '#fda4af', dark: '#4c0519' }  // Rose
+  ];
+
+  // Web Audio Synth Setup
+  let audioCtx = null;
+  let audioDest = null;
+  let noteStep = 0;
+  // C Major Pentatonic frequencies across 3 octaves
+  const SCALE = [
+    261.63, 293.66, 329.63, 392.00, 440.00,
+    523.25, 587.33, 659.25, 783.99, 880.00,
+    1046.50, 1174.66, 1318.51, 1567.98
+  ];
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioDest = audioCtx.createMediaStreamDestination();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    document.getElementById('audioBtn').textContent = 'Sound Active ✓';
+    statusText.textContent = 'Audio active! Ready to record.';
+  }
+
+  function playHitSound(speed) {
+    if (!audioCtx || elSound.value === 'mute') return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    const freq = SCALE[noteStep % SCALE.length];
+    noteStep++;
+
+    osc.type = elSound.value === 'harp' ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+
+    const vol = Math.min(0.28, Math.max(0.05, speed / 45));
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(vol, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (elSound.value === 'harp' ? 0.65 : 0.32));
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    if (audioDest) gain.connect(audioDest);
+
+    osc.start(now);
+    osc.stop(now + 0.7);
+  }
+
+  let balls = [];
+
+  function createBalls() {
+    const count = parseInt(elBalls.value, 10);
+    balls = [];
+    noteStep = 0;
+
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
+      const spawnDist = 140;
+      const speed = 7 + Math.random() * 4;
+      const moveAngle = angle + (Math.random() * 1.4 - 0.7) + Math.PI / 2;
+
+      balls.push({
+        x: CX + Math.cos(angle) * spawnDist,
+        y: CY + Math.sin(angle) * spawnDist,
+        vx: Math.cos(moveAngle) * speed,
+        vy: Math.sin(moveAngle) * speed,
+        r: 26,
+        color: PALETTE[i % PALETTE.length],
+        anchors: []
+      });
+    }
+  }
+
+  function updatePhysics() {
+    const speedMult = parseFloat(elSpeed.value);
+    const grav = parseFloat(elGrav.value);
+    const maxAnchors = parseInt(elStrings.value, 10);
+
+    // Sub-steps for clean collision accuracy
+    const steps = 2;
+    for (let s = 0; s < steps; s++) {
+      for (let i = 0; i < balls.length; i++) {
+        const b = balls[i];
+        b.vy += (grav * speedMult) / steps;
+        b.x += (b.vx * speedMult) / steps;
+        b.y += (b.vy * speedMult) / steps;
+
+        // Outer ring collision
+        const dx = b.x - CX;
+        const dy = b.y - CY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist + b.r >= ARENA_R) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+
+          // Position snap to ring inner wall
+          b.x = CX + nx * (ARENA_R - b.r);
+          b.y = CY + ny * (ARENA_R - b.r);
+
+          // Exact contact point on ring perimeter for tether line
+          const anchorX = CX + nx * ARENA_R;
+          const anchorY = CY + ny * ARENA_R;
+          b.anchors.push({ x: anchorX, y: anchorY });
+          if (b.anchors.length > maxAnchors) b.anchors.shift();
+
+          // Reflect velocity with slight energy preservation so simulation never dies
+          const dot = b.vx * nx + b.vy * ny;
+          b.vx = (b.vx - 2 * dot * nx) * 0.995;
+          b.vy = (b.vy - 2 * dot * ny) * 0.995;
+
+          // Minimum velocity floor
+          const curSpeed = Math.hypot(b.vx, b.vy);
+          if (curSpeed < 6) {
+            b.vx = (b.vx / curSpeed) * 6.5;
+            b.vy = (b.vy / curSpeed) * 6.5;
+          }
+
+          playHitSound(curSpeed * speedMult);
+        }
+      }
+
+      // Ball-to-ball elastic collisions
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          const b1 = balls[i];
+          const b2 = balls[j];
+          const dx = b2.x - b1.x;
+          const dy = b2.y - b1.y;
+          const dist = Math.hypot(dx, dy);
+          const minDist = b1.r + b2.r;
+
+          if (dist < minDist && dist > 0) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = (minDist - dist) / 2;
+
+            b1.x -= nx * overlap;
+            b1.y -= ny * overlap;
+            b2.x += nx * overlap;
+            b2.y += ny * overlap;
+
+            const dvx = b2.vx - b1.vx;
+            const dvy = b2.vy - b1.vy;
+            const velAlongNormal = dvx * nx + dvy * ny;
+
+            if (velAlongNormal < 0) {
+              const impulse = -velAlongNormal;
+              b1.vx -= impulse * nx;
+              b1.vy -= impulse * ny;
+              b2.vx += impulse * nx;
+              b2.vy += impulse * ny;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function draw() {
+    const isDark = elTheme.value === 'dark';
+
+    // Background
+    ctx.fillStyle = isDark ? '#0e1015' : '#f4eee1';
+    ctx.fillRect(0, 0, W, H);
+
+    // Arena Fill
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#151821' : '#faf6ee';
+    ctx.fill();
+    ctx.clip();
+
+    // Draw tether strings first (behind balls)
+    for (const b of balls) {
+      ctx.strokeStyle = b.color.main;
+      ctx.lineWidth = 2.6;
+      ctx.globalAlpha = 0.85;
+      for (const a of b.anchors) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw 3D shaded balls
+    for (const b of balls) {
+      // Soft drop shadow
+      ctx.beginPath();
+      ctx.arc(b.x + 4, b.y + 6, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)';
+      ctx.fill();
+
+      // Spherical radial gradient
+      const grad = ctx.createRadialGradient(
+        b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.1,
+        b.x, b.y, b.r
+      );
+      grad.addColorStop(0, b.color.light);
+      grad.addColorStop(0.55, b.color.main);
+      grad.addColorStop(1, b.color.dark);
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Outer metallic ring border
+    ctx.beginPath();
+    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = isDark ? '#c59227' : '#b89446';
+    ctx.stroke();
+  }
+
+  function loop() {
+    updatePhysics();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Video Recording via MediaRecorder API
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let isRecording = false;
+  const recordBtn = document.getElementById('recordBtn');
+
+  recordBtn.addEventListener('click', () => {
+    if (!isRecording) {
+      initAudio();
+      const canvasStream = canvas.captureStream(60);
+      const tracks = [...canvasStream.getVideoTracks()];
+      if (audioDest) tracks.push(...audioDest.stream.getAudioTracks());
+
+      const combinedStream = new MediaStream(tracks);
+      const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')
+        ? 'video/mp4;codecs=avc1'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm';
+
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 8000000 // 8 Mbps crisp 1080p
+      });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(recordedChunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tether-ball-sim-${Date.now()}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        statusText.textContent = `Downloaded .${ext} video (1080×1920, no watermark)!`;
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.classList.add('recording');
+      recordBtn.textContent = '■ Stop & Save Video';
+      statusText.textContent = 'Recording 1080×1920 @ 60fps...';
+    } else {
+      mediaRecorder.stop();
+      isRecording = false;
+      recordBtn.classList.remove('recording');
+      recordBtn.textContent = '● Record & Download Video';
+    }
+  });
+
+  // UI Listeners
+  elBalls.addEventListener('input', () => {
+    document.getElementById('valBalls').textContent = elBalls.value;
+    createBalls();
+  });
+  elSpeed.addEventListener('input', () => {
+    document.getElementById('valSpeed').textContent = `${parseFloat(elSpeed.value).toFixed(1)}x`;
+  });
+  elGrav.addEventListener('input', () => {
+    document.getElementById('valGrav').textContent = parseFloat(elGrav.value).toFixed(2);
+  });
+  elStrings.addEventListener('input', () => {
+    document.getElementById('valStrings').textContent = elStrings.value;
+  });
+  document.getElementById('resetBtn').addEventListener('click', createBalls);
+  document.getElementById('audioBtn').addEventListener('click', initAudio);
+
+  // Start
+  createBalls();
+  loop();
+})();
+</script>
+</body>
+</html>
