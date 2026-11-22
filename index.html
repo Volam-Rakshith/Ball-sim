@@ -21,6 +21,7 @@
       height: 100vh;
       object-fit: contain;
       display: block;
+      touch-action: none;
     }
 
     #gearBtn {
@@ -65,8 +66,10 @@
       position: fixed;
       top: 66px;
       right: 16px;
-      width: 270px;
-      background: rgba(20, 22, 30, 0.92);
+      width: 285px;
+      max-height: calc(100vh - 84px);
+      overflow-y: auto;
+      background: rgba(20, 22, 30, 0.94);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 14px;
@@ -76,10 +79,10 @@
       flex-direction: column;
       gap: 12px;
       z-index: 30;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
     }
     #drawer.open { display: flex; }
-    .row { display: flex; flex-direction: column; gap: 4px; }
+    .row { display: flex; flex-direction: column; gap: 5px; }
     label {
       display: flex;
       justify-content: space-between;
@@ -99,7 +102,38 @@
       cursor: pointer;
     }
     button.record { background: #10b981; color: #042f1e; border: none; }
+    button.setup-active { background: #38bdf8; color: #082f49; border: none; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* Color picker grid */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      padding-top: 2px;
+    }
+    .color-swatch {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .color-swatch input[type="color"] {
+      position: absolute;
+      inset: -6px;
+      width: calc(100% + 12px);
+      height: calc(100% + 12px);
+      border: none;
+      cursor: pointer;
+      background: none;
+    }
+    .hint {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
   </style>
 </head>
 <body>
@@ -114,26 +148,41 @@
       <label>Colors / Balls <span id="vBalls">6</span></label>
       <input type="range" id="inBalls" min="2" max="10" value="6" />
     </div>
+
+    <div class="row">
+      <label>Ball Colors (Tap to Change)</label>
+      <div class="color-grid" id="colorGrid"></div>
+    </div>
+
+    <div class="row">
+      <button class="action" id="btnSetup">✋ Drag Start Positions: OFF</button>
+      <div class="hint" id="setupHint">Turn ON to pause & drag balls anywhere inside the circle before launching.</div>
+    </div>
+
     <div class="row">
       <label>Speed <span id="vSpeed">1.1x</span></label>
       <input type="range" id="inSpeed" min="0.5" max="2.2" step="0.1" value="1.1" />
     </div>
+
     <div class="row">
       <label>Gravity <span id="vGrav">0.22</span></label>
       <input type="range" id="inGrav" min="0" max="0.8" step="0.02" value="0.22" />
     </div>
+
     <div class="row">
       <select id="inMode">
         <option value="elim">Elimination (Last Color Wins)</option>
         <option value="endless">Endless String Cutting</option>
       </select>
     </div>
+
     <div class="row">
       <select id="inTheme">
         <option value="cream">Cream Background</option>
         <option value="dark">Dark Background</option>
       </select>
     </div>
+
     <div class="row">
       <select id="inSound">
         <option value="marimba">Marimba + Snip SFX</option>
@@ -141,6 +190,7 @@
         <option value="mute">Muted</option>
       </select>
     </div>
+
     <div class="grid2">
       <button class="action" id="btnReset">Reset</button>
       <button class="action" id="btnAudio">Sound On</button>
@@ -158,19 +208,23 @@
   const CY = H / 2;
   const ARENA_R = 440;
 
-  // Distinct, easy-to-comment colors (Gold, Purple, Green, Blue, Red, Black, Orange, Cyan, Pink, Teal)
-  const PALETTE = [
-    { main: '#d49b27', light: '#f9dc8b', dark: '#734f08' }, // Gold/Yellow
-    { main: '#722b8c', light: '#c37be0', dark: '#360d45' }, // Purple
-    { main: '#1e7d58', light: '#5ed4a5', dark: '#0b3d29' }, // Green
-    { main: '#23629e', light: '#6cb2f2', dark: '#0d2e4f' }, // Blue
-    { main: '#9e212b', light: '#eb6570', dark: '#4a090e' }, // Red
-    { main: '#242429', light: '#6e6e78', dark: '#08080a' }, // Black
-    { main: '#c95318', light: '#fa9866', dark: '#5e2103' }, // Orange
-    { main: '#0d85a6', light: '#6be8ff', dark: '#114859' }, // Cyan
-    { main: '#b82578', light: '#fc7ec5', dark: '#540933' }, // Pink
-    { main: '#4f8512', light: '#b8f56c', dark: '#1e3604' }  // Lime
+  const DEFAULT_HEX = [
+    '#d49b27', // Gold
+    '#722b8c', // Purple
+    '#1e7d58', // Green
+    '#23629e', // Blue
+    '#9e212b', // Red
+    '#242429', // Black
+    '#c95318', // Orange
+    '#0d85a6', // Cyan
+    '#b82578', // Pink
+    '#4f8512'  // Lime
   ];
+
+  let customColors = [...DEFAULT_HEX];
+  let customStartPos = []; // Stores {x, y} if user drags balls
+  let setupMode = false;
+  let draggingBall = null;
 
   const gearBtn = document.getElementById('gearBtn');
   const drawer = document.getElementById('drawer');
@@ -181,11 +235,123 @@
   const inMode = document.getElementById('inMode');
   const inTheme = document.getElementById('inTheme');
   const inSound = document.getElementById('inSound');
+  const colorGrid = document.getElementById('colorGrid');
+  const btnSetup = document.getElementById('btnSetup');
 
   gearBtn.addEventListener('click', () => drawer.classList.toggle('open'));
-  canvas.addEventListener('click', () => {
+
+  // Helper to generate 3D highlight & shadow from any hex color
+  function shadeHex(hex, percent) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+    const G = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
+    const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+  }
+
+  function buildColorPickers() {
+    const count = parseInt(inBalls.value, 10);
+    colorGrid.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const wrap = document.createElement('div');
+      wrap.className = 'color-swatch';
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.value = customColors[i];
+      input.addEventListener('input', (e) => {
+        customColors[i] = e.target.value;
+        if (balls[i]) balls[i].hex = e.target.value;
+      });
+      wrap.appendChild(input);
+      colorGrid.appendChild(wrap);
+    }
+  }
+
+  // Toggle Drag-to-Position Setup Mode
+  btnSetup.addEventListener('click', () => {
+    setupMode = !setupMode;
+    if (setupMode) {
+      btnSetup.textContent = '🚀 Launch Simulation';
+      btnSetup.classList.add('setup-active');
+      // Reset anchors & revive all balls so user can position them cleanly
+      balls.forEach((b, idx) => {
+        b.anchors = [];
+        b.hasSpawnedStrings = false;
+        b.alive = true;
+        if (customStartPos[idx]) {
+          b.x = customStartPos[idx].x;
+          b.y = customStartPos[idx].y;
+        }
+      });
+      sparks = [];
+      drawer.classList.remove('open');
+    } else {
+      btnSetup.textContent = '✋ Drag Start Positions: OFF';
+      btnSetup.classList.remove('setup-active');
+      // Give fresh launch velocities from their chosen spots
+      balls.forEach((b) => {
+        const dir = Math.random() * Math.PI * 2;
+        const spd = 8.5 + Math.random() * 2.5;
+        b.vx = Math.cos(dir) * spd;
+        b.vy = Math.sin(dir) * spd;
+      });
+    }
+  });
+
+  // Convert screen pointer coordinates to 1080x1920 canvas coordinates
+  function getCanvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scale = Math.min(rect.width / W, rect.height / H);
+    const renderedW = W * scale;
+    const renderedH = H * scale;
+    const offsetX = (rect.width - renderedW) / 2;
+    const offsetY = (rect.height - renderedH) / 2;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    return {
+      x: (clientX - rect.left - offsetX) / scale,
+      y: (clientY - rect.top - offsetY) / scale
+    };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
     drawer.classList.remove('open');
     initAudio();
+    if (!setupMode) return;
+
+    const pt = getCanvasCoords(e);
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.r * 1.8) {
+        draggingBall = b;
+        break;
+      }
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!draggingBall || !setupMode) return;
+    const pt = getCanvasCoords(e);
+    const dx = pt.x - CX;
+    const dy = pt.y - CY;
+    const dist = Math.hypot(dx, dy);
+    const maxR = ARENA_R - draggingBall.r - 4;
+
+    if (dist > maxR) {
+      draggingBall.x = CX + (dx / dist) * maxR;
+      draggingBall.y = CY + (dy / dist) * maxR;
+    } else {
+      draggingBall.x = pt.x;
+      draggingBall.y = pt.y;
+    }
+    customStartPos[draggingBall.id] = { x: draggingBall.x, y: draggingBall.y };
+  });
+
+  window.addEventListener('pointerup', () => {
+    draggingBall = null;
   });
 
   // Web Audio Synth
@@ -240,7 +406,6 @@
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
-    // High quick pitch drop for string-snap sound
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(920, now);
     osc.frequency.exponentialRampToValueAtTime(220, now + 0.07);
@@ -259,7 +424,7 @@
   let balls = [];
   let sparks = [];
 
-  function spawnBalls() {
+  function spawnBalls(keepPositions = false) {
     const count = parseInt(inBalls.value, 10);
     balls = [];
     sparks = [];
@@ -271,22 +436,29 @@
       const spd = 8 + Math.random() * 3;
       const dir = angle + (Math.random() * 1.1 - 0.55) + Math.PI / 2;
 
+      const startX = (keepPositions && customStartPos[i])
+        ? customStartPos[i].x
+        : CX + Math.cos(angle) * dist;
+      const startY = (keepPositions && customStartPos[i])
+        ? customStartPos[i].y
+        : CY + Math.sin(angle) * dist;
+
       balls.push({
         id: i,
-        x: CX + Math.cos(angle) * dist,
-        y: CY + Math.sin(angle) * dist,
+        x: startX,
+        y: startY,
         vx: Math.cos(dir) * spd,
         vy: Math.sin(dir) * spd,
         r: 26,
-        color: PALETTE[i % PALETTE.length],
+        hex: customColors[i],
         anchors: [],
         hasSpawnedStrings: false,
         alive: true
       });
     }
+    buildColorPickers();
   }
 
-  // Exact distance from circle center (px, py) to line segment (x1, y1)-(x2, y2)
   function pointToSegmentDist(px, py, x1, y1, x2, y2) {
     const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
     if (l2 === 0) return { dist: Math.hypot(px - x1, py - y1), cx: x1, cy: y1 };
@@ -312,18 +484,204 @@
   }
 
   function stepPhysics() {
+    if (setupMode) return;
+
     const spdMult = parseFloat(inSpeed.value);
     const grav = parseFloat(inGrav.value);
     const elimMode = inMode.value === 'elim';
     const subSteps = 3;
 
     for (let s = 0; s < subSteps; s++) {
-      // Move alive balls & bounce off outer ring
       for (const b of balls) {
         if (!b.alive) continue;
 
         b.vy += (grav * spdMult) / subSteps;
         b.x += (b.vx * spdMult) / subSteps;
+        b.y += (b.vy * spdMult) / subSteps;
+
+        const dx = b.x - CX;
+        const dy = b.y - CY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist + b.r >= ARENA_R) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+
+          b.x = CX + nx * (ARENA_R - b.r);
+          b.y = CY + ny * (ARENA_R - b.r);
+
+          b.anchors.push({ x: CX + nx * ARENA_R, y: CY + ny * ARENA_R });
+          b.hasSpawnedStrings = true;
+          if (b.anchors.length > 90) b.anchors.shift();
+
+          const dot = b.vx * nx + b.vy * ny;
+          b.vx = (b.vx - 2 * dot * nx) * 0.997;
+          b.vy = (b.vy - 2 * dot * ny) * 0.997;
+
+          const curSpd = Math.hypot(b.vx, b.vy);
+          if (curSpd < 6.5) {
+            b.vx = (b.vx / curSpd) * 7.2;
+            b.vy = (b.vy / curSpd) * 7.2;
+          }
+
+          playBounce(curSpd * spdMult);
+        }
+      }
+
+      // String cutting check
+      for (const cutter of balls) {
+        if (!cutter.alive) continue;
+
+        for (const owner of balls) {
+          if (!owner.alive || owner.id === cutter.id) continue;
+          if (owner.anchors.length === 0) continue;
+
+          let anyCut = false;
+          owner.anchors = owner.anchors.filter((anchor) => {
+            const hit = pointToSegmentDist(
+              cutter.x, cutter.y,
+              anchor.x, anchor.y,
+              owner.x, owner.y
+            );
+            if (hit.dist <= cutter.r * 0.92) {
+              addCutSparks(hit.cx, hit.cy, owner.hex);
+              anyCut = true;
+              return false;
+            }
+            return true;
+          });
+
+          if (anyCut) {
+            playCut();
+            if (elimMode && owner.hasSpawnedStrings && owner.anchors.length === 0) {
+              const aliveCount = balls.filter(x => x.alive).length;
+              if (aliveCount > 1) {
+                owner.alive = false;
+                for (let p = 0; p < 18; p++) {
+                  addCutSparks(owner.x, owner.y, owner.hex);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Ball-to-ball collisions
+      for (let i = 0; i < balls.length; i++) {
+        if (!balls[i].alive) continue;
+        for (let j = i + 1; j < balls.length; j++) {
+          if (!balls[j].alive) continue;
+          const b1 = balls[i];
+          const b2 = balls[j];
+          const dx = b2.x - b1.x;
+          const dy = b2.y - b1.y;
+          const dist = Math.hypot(dx, dy);
+          const minDist = b1.r + b2.r;
+
+          if (dist < minDist && dist > 0) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = (minDist - dist) / 2;
+
+            b1.x -= nx * overlap;
+            b1.y -= ny * overlap;
+            b2.x += nx * overlap;
+            b2.y += ny * overlap;
+
+            const dvx = b2.vx - b1.vx;
+            const dvy = b2.vy - b1.vy;
+            const velAlongNormal = dvx * nx + dvy * ny;
+
+            if (velAlongNormal < 0) {
+              const imp = -velAlongNormal;
+              b1.vx -= imp * nx;
+              b1.vy -= imp * ny;
+              b2.vx += imp * nx;
+              b2.vy += imp * ny;
+            }
+          }
+        }
+      }
+    }
+
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const sp = sparks[i];
+      sp.x += sp.vx;
+      sp.y += sp.vy;
+      sp.life -= 0.06;
+      if (sp.life <= 0) sparks.splice(i, 1);
+    }
+  }
+
+  function render() {
+    const isDark = inTheme.value === 'dark';
+    document.body.style.background = isDark ? '#0e1015' : '#f4eee1';
+
+    ctx.fillStyle = isDark ? '#0e1015' : '#f4eee1';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#151821' : '#faf6ee';
+    ctx.fill();
+    ctx.clip();
+
+    // Draw tether strings
+    for (const b of balls) {
+      if (!b.alive) continue;
+      ctx.strokeStyle = b.hex;
+      ctx.lineWidth = 2.8;
+      ctx.globalAlpha = 0.88;
+      for (const a of b.anchors) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw sparks
+    for (const sp of sparks) {
+      ctx.globalAlpha = Math.max(0, sp.life);
+      ctx.fillStyle = sp.color;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw 3D balls
+    for (const b of balls) {
+      if (!b.alive) continue;
+      ctx.beginPath();
+      ctx.arc(b.x + 4, b.y + 6, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.16)';
+      ctx.fill();
+
+      const grad = ctx.createRadialGradient(
+        b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.1,
+        b.x, b.y, b.r
+      );
+      grad.addColorStop(0, shadeHex(b.hex, 45));
+      grad.addColorStop(0.55, b.hex);
+      grad.addColorStop(1, shadeHex(b.hex, -45));
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Subtle dashed ring around balls ONLY while dragging in Setup Mode
+      if (setupMode) {
+        ctx.save();
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + 10, 0, Math.PI * 2);
+     dMult) / subSteps;
         b.y += (b.vy * spdMult) / subSteps;
 
         const dx = b.x - CX;
