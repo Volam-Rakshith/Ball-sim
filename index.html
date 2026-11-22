@@ -23,7 +23,6 @@
       display: block;
       touch-action: none;
     }
-
     #gearBtn {
       position: fixed;
       top: 16px;
@@ -44,7 +43,6 @@
       transition: opacity 0.25s;
     }
     #gearBtn.hidden { opacity: 0; pointer-events: none; }
-
     #stopPill {
       position: fixed;
       bottom: 24px;
@@ -61,7 +59,6 @@
       z-index: 20;
       display: none;
     }
-
     #drawer {
       position: fixed;
       top: 66px;
@@ -104,8 +101,6 @@
     button.record { background: #10b981; color: #042f1e; border: none; }
     button.setup-active { background: #38bdf8; color: #082f49; border: none; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-    /* Color picker grid */
     .color-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -156,7 +151,7 @@
 
     <div class="row">
       <button class="action" id="btnSetup">✋ Drag Start Positions: OFF</button>
-      <div class="hint" id="setupHint">Turn ON to pause & drag balls anywhere inside the circle before launching.</div>
+      <div class="hint">Turn ON to pause & drag balls anywhere inside the circle before launching.</div>
     </div>
 
     <div class="row">
@@ -209,20 +204,20 @@
   const ARENA_R = 440;
 
   const DEFAULT_HEX = [
-    '#d49b27', // Gold
-    '#722b8c', // Purple
-    '#1e7d58', // Green
-    '#23629e', // Blue
-    '#9e212b', // Red
-    '#242429', // Black
-    '#c95318', // Orange
-    '#0d85a6', // Cyan
-    '#b82578', // Pink
-    '#4f8512'  // Lime
+    '#d49b27',
+    '#722b8c',
+    '#1e7d58',
+    '#23629e',
+    '#9e212b',
+    '#242429',
+    '#c95318',
+    '#0d85a6',
+    '#b82578',
+    '#4f8512'
   ];
 
   let customColors = [...DEFAULT_HEX];
-  let customStartPos = []; // Stores {x, y} if user drags balls
+  let customStartPos = [];
   let setupMode = false;
   let draggingBall = null;
 
@@ -240,14 +235,13 @@
 
   gearBtn.addEventListener('click', () => drawer.classList.toggle('open'));
 
-  // Helper to generate 3D highlight & shadow from any hex color
   function shadeHex(hex, percent) {
     const num = parseInt(hex.replace('#', ''), 16);
     const amt = Math.round(2.55 * percent);
     const R = Math.min(255, Math.max(0, (num >> 16) + amt));
     const G = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
     const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
-    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+    return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
   }
 
   function buildColorPickers() {
@@ -268,13 +262,11 @@
     }
   }
 
-  // Toggle Drag-to-Position Setup Mode
   btnSetup.addEventListener('click', () => {
     setupMode = !setupMode;
     if (setupMode) {
       btnSetup.textContent = '🚀 Launch Simulation';
       btnSetup.classList.add('setup-active');
-      // Reset anchors & revive all balls so user can position them cleanly
       balls.forEach((b, idx) => {
         b.anchors = [];
         b.hasSpawnedStrings = false;
@@ -289,7 +281,6 @@
     } else {
       btnSetup.textContent = '✋ Drag Start Positions: OFF';
       btnSetup.classList.remove('setup-active');
-      // Give fresh launch velocities from their chosen spots
       balls.forEach((b) => {
         const dir = Math.random() * Math.PI * 2;
         const spd = 8.5 + Math.random() * 2.5;
@@ -299,7 +290,6 @@
     }
   });
 
-  // Convert screen pointer coordinates to 1080x1920 canvas coordinates
   function getCanvasCoords(e) {
     const rect = canvas.getBoundingClientRect();
     const scale = Math.min(rect.width / W, rect.height / H);
@@ -354,7 +344,6 @@
     draggingBall = null;
   });
 
-  // Web Audio Synth
   let audioCtx = null;
   let audioDest = null;
   let noteStep = 0;
@@ -424,7 +413,7 @@
   let balls = [];
   let sparks = [];
 
-  function spawnBalls(keepPositions = false) {
+  function spawnBalls(keepPositions) {
     const count = parseInt(inBalls.value, 10);
     balls = [];
     sparks = [];
@@ -460,7 +449,7 @@
   }
 
   function pointToSegmentDist(px, py, x1, y1, x2, y2) {
-    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+    const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
     if (l2 === 0) return { dist: Math.hypot(px - x1, py - y1), cx: x1, cy: y1 };
     let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
     t = Math.max(0, Math.min(1, t));
@@ -528,7 +517,6 @@
         }
       }
 
-      // String cutting check
       for (const cutter of balls) {
         if (!cutter.alive) continue;
 
@@ -566,7 +554,6 @@
         }
       }
 
-      // Ball-to-ball collisions
       for (let i = 0; i < balls.length; i++) {
         if (!balls[i].alive) continue;
         for (let j = i + 1; j < balls.length; j++) {
@@ -627,7 +614,6 @@
     ctx.fill();
     ctx.clip();
 
-    // Draw tether strings
     for (const b of balls) {
       if (!b.alive) continue;
       ctx.strokeStyle = b.hex;
@@ -642,7 +628,6 @@
     }
     ctx.globalAlpha = 1;
 
-    // Draw sparks
     for (const sp of sparks) {
       ctx.globalAlpha = Math.max(0, sp.life);
       ctx.fillStyle = sp.color;
@@ -652,7 +637,6 @@
     }
     ctx.globalAlpha = 1;
 
-    // Draw 3D balls
     for (const b of balls) {
       if (!b.alive) continue;
       ctx.beginPath();
@@ -673,7 +657,6 @@
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Subtle dashed ring around balls ONLY while dragging in Setup Mode
       if (setupMode) {
         ctx.save();
         ctx.setLineDash([6, 6]);
@@ -681,190 +664,12 @@
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.r + 10, 0, Math.PI * 2);
-     dMult) / subSteps;
-        b.y += (b.vy * spdMult) / subSteps;
-
-        const dx = b.x - CX;
-        const dy = b.y - CY;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist + b.r >= ARENA_R) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-
-          b.x = CX + nx * (ARENA_R - b.r);
-          b.y = CY + ny * (ARENA_R - b.r);
-
-          // Add new tether string from wall contact point
-          b.anchors.push({ x: CX + nx * ARENA_R, y: CY + ny * ARENA_R });
-          b.hasSpawnedStrings = true;
-          if (b.anchors.length > 90) b.anchors.shift();
-
-          const dot = b.vx * nx + b.vy * ny;
-          b.vx = (b.vx - 2 * dot * nx) * 0.997;
-          b.vy = (b.vy - 2 * dot * ny) * 0.997;
-
-          const curSpd = Math.hypot(b.vx, b.vy);
-          if (curSpd < 6.5) {
-            b.vx = (b.vx / curSpd) * 7.2;
-            b.vy = (b.vy / curSpd) * 7.2;
-          }
-
-          playBounce(curSpd * spdMult);
-        }
-      }
-
-      // Check if any ball touches/cuts another ball's strings!
-      for (const cutter of balls) {
-        if (!cutter.alive) continue;
-
-        for (const owner of balls) {
-          if (!owner.alive || owner.id === cutter.id) continue;
-          if (owner.anchors.length === 0) continue;
-
-          let anyCut = false;
-          owner.anchors = owner.anchors.filter((anchor) => {
-            const hit = pointToSegmentDist(
-              cutter.x, cutter.y,
-              anchor.x, anchor.y,
-              owner.x, owner.y
-            );
-            // Cut if cutter ball touches the string
-            if (hit.dist <= cutter.r * 0.92) {
-              addCutSparks(hit.cx, hit.cy, owner.color.main);
-              anyCut = true;
-              return false; // String is severed!
-            }
-            return true;
-          });
-
-          if (anyCut) {
-            playCut();
-            // In Elimination Mode, if all of a ball's strings get cut off after it started, it's eliminated!
-            if (elimMode && owner.hasSpawnedStrings && owner.anchors.length === 0) {
-              const aliveCount = balls.filter(x => x.alive).length;
-              if (aliveCount > 1) {
-                owner.alive = false;
-                for (let p = 0; p < 18; p++) {
-                  addCutSparks(owner.x, owner.y, owner.color.main);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Ball-to-ball elastic collisions
-      for (let i = 0; i < balls.length; i++) {
-        if (!balls[i].alive) continue;
-        for (let j = i + 1; j < balls.length; j++) {
-          if (!balls[j].alive) continue;
-          const b1 = balls[i];
-          const b2 = balls[j];
-          const dx = b2.x - b1.x;
-          const dy = b2.y - b1.y;
-          const dist = Math.hypot(dx, dy);
-          const minDist = b1.r + b2.r;
-
-          if (dist < minDist && dist > 0) {
-            const nx = dx / dist;
-            const ny = dy / dist;
-            const overlap = (minDist - dist) / 2;
-
-            b1.x -= nx * overlap;
-            b1.y -= ny * overlap;
-            b2.x += nx * overlap;
-            b2.y += ny * overlap;
-
-            const dvx = b2.vx - b1.vx;
-            const dvy = b2.vy - b1.vy;
-            const velAlongNormal = dvx * nx + dvy * ny;
-
-            if (velAlongNormal < 0) {
-              const imp = -velAlongNormal;
-              b1.vx -= imp * nx;
-              b1.vy -= imp * ny;
-              b2.vx += imp * nx;
-              b2.vy += imp * ny;
-            }
-          }
-        }
-      }
-    }
-
-    // Update cut sparks
-    for (let i = sparks.length - 1; i >= 0; i--) {
-      const sp = sparks[i];
-      sp.x += sp.vx;
-      sp.y += sp.vy;
-      sp.life -= 0.06;
-      if (sp.life <= 0) sparks.splice(i, 1);
-    }
-  }
-
-  function render() {
-    const isDark = inTheme.value === 'dark';
-    document.body.style.background = isDark ? '#0e1015' : '#f4eee1';
-
-    ctx.fillStyle = isDark ? '#0e1015' : '#f4eee1';
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
-    ctx.fillStyle = isDark ? '#151821' : '#faf6ee';
-    ctx.fill();
-    ctx.clip();
-
-    // Draw intact tether strings
-    for (const b of balls) {
-      if (!b.alive) continue;
-      ctx.strokeStyle = b.color.main;
-      ctx.lineWidth = 2.8;
-      ctx.globalAlpha = 0.88;
-      for (const a of b.anchors) {
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
         ctx.stroke();
+        ctx.restore();
       }
-    }
-    ctx.globalAlpha = 1;
-
-    // Draw cut sparks
-    for (const sp of sparks) {
-      ctx.globalAlpha = Math.max(0, sp.life);
-      ctx.fillStyle = sp.color;
-      ctx.beginPath();
-      ctx.arc(sp.x, sp.y, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // Draw alive 3D shaded balls
-    for (const b of balls) {
-      if (!b.alive) continue;
-      ctx.beginPath();
-      ctx.arc(b.x + 4, b.y + 6, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.16)';
-      ctx.fill();
-
-      const grad = ctx.createRadialGradient(
-        b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.1,
-        b.x, b.y, b.r
-      );
-      grad.addColorStop(0, b.color.light);
-      grad.addColorStop(0.55, b.color.main);
-      grad.addColorStop(1, b.color.dark);
-
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
     }
     ctx.restore();
 
-    // Clean outer ring
     ctx.beginPath();
     ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
     ctx.lineWidth = 7;
@@ -878,255 +683,18 @@
     requestAnimationFrame(loop);
   }
 
-  // Recording logic
   let recorder = null;
   let chunks = [];
 
   function startRecording() {
+    if (setupMode) {
+      setupMode = false;
+      btnSetup.textContent = '✋ Drag Start Positions: OFF';
+      btnSetup.classList.remove('setup-active');
+    }
     initAudio();
     drawer.classList.remove('open');
     gearBtn.classList.add('hidden');
     stopPill.style.display = 'block';
 
-    const stream = canvas.captureStream(60);
-    const tracks = [...stream.getVideoTracks()];
-    if (audioDest) tracks.push(...audioDest.stream.getAudioTracks());
-
-    const combined = new MediaStream(tracks);
-    const mime = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')
-      ? 'video/mp4;codecs=avc1'
-      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-      ? 'video/webm;codecs=vp9,opus'
-      : 'video/webm';
-
-    chunks = [];
-    recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 8000000 });
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
-      const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-      const blob = new Blob(chunks, { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `battle-${Date.now()}.${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      gearBtn.classList.remove('hidden');
-      stopPill.style.display = 'none';
-    };
-    recorder.start();
-  }
-
-  document.getElementById('btnRec').addEventListener('click', startRecording);
-  stopPill.addEventListener('click', () => { if (recorder && recorder.state === 'recording') recorder.stop(); });
-
-  inBalls.addEventListener('input', () => { document.getElementById('vBalls').textContent = inBalls.value; spawnBalls(); });
-  inSpeed.addEventListener('input', () => { document.getElementById('vSpeed').textContent = `${parseFloat(inSpeed.value).toFixed(1)}x`; });
-  inGrav.addEventListener('input', () => { document.getElementById('vGrav').textContent = parseFloat(inGrav.value).toFixed(2); });
-  inMode.addEventListener('change', spawnBalls);
-  document.getElementById('btnReset').addEventListener('click', spawnBalls);
-  document.getElementById('btnAudio').addEventListener('click', initAudio);
-
-  spawnBalls();
-  loop();
-})();
-</script>
-</body>
-</html>
-y) * 0.995;
-
-          // Minimum velocity floor
-          const curSpeed = Math.hypot(b.vx, b.vy);
-          if (curSpeed < 6) {
-            b.vx = (b.vx / curSpeed) * 6.5;
-            b.vy = (b.vy / curSpeed) * 6.5;
-          }
-
-          playHitSound(curSpeed * speedMult);
-        }
-      }
-
-      // Ball-to-ball elastic collisions
-      for (let i = 0; i < balls.length; i++) {
-        for (let j = i + 1; j < balls.length; j++) {
-          const b1 = balls[i];
-          const b2 = balls[j];
-          const dx = b2.x - b1.x;
-          const dy = b2.y - b1.y;
-          const dist = Math.hypot(dx, dy);
-          const minDist = b1.r + b2.r;
-
-          if (dist < minDist && dist > 0) {
-            const nx = dx / dist;
-            const ny = dy / dist;
-            const overlap = (minDist - dist) / 2;
-
-            b1.x -= nx * overlap;
-            b1.y -= ny * overlap;
-            b2.x += nx * overlap;
-            b2.y += ny * overlap;
-
-            const dvx = b2.vx - b1.vx;
-            const dvy = b2.vy - b1.vy;
-            const velAlongNormal = dvx * nx + dvy * ny;
-
-            if (velAlongNormal < 0) {
-              const impulse = -velAlongNormal;
-              b1.vx -= impulse * nx;
-              b1.vy -= impulse * ny;
-              b2.vx += impulse * nx;
-              b2.vy += impulse * ny;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  function draw() {
-    const isDark = elTheme.value === 'dark';
-
-    // Background
-    ctx.fillStyle = isDark ? '#0e1015' : '#f4eee1';
-    ctx.fillRect(0, 0, W, H);
-
-    // Arena Fill
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
-    ctx.fillStyle = isDark ? '#151821' : '#faf6ee';
-    ctx.fill();
-    ctx.clip();
-
-    // Draw tether strings first (behind balls)
-    for (const b of balls) {
-      ctx.strokeStyle = b.color.main;
-      ctx.lineWidth = 2.6;
-      ctx.globalAlpha = 0.85;
-      for (const a of b.anchors) {
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // Draw 3D shaded balls
-    for (const b of balls) {
-      // Soft drop shadow
-      ctx.beginPath();
-      ctx.arc(b.x + 4, b.y + 6, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)';
-      ctx.fill();
-
-      // Spherical radial gradient
-      const grad = ctx.createRadialGradient(
-        b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.1,
-        b.x, b.y, b.r
-      );
-      grad.addColorStop(0, b.color.light);
-      grad.addColorStop(0.55, b.color.main);
-      grad.addColorStop(1, b.color.dark);
-
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // Outer metallic ring border
-    ctx.beginPath();
-    ctx.arc(CX, CY, ARENA_R, 0, Math.PI * 2);
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = isDark ? '#c59227' : '#b89446';
-    ctx.stroke();
-  }
-
-  function loop() {
-    updatePhysics();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  // Video Recording via MediaRecorder API
-  let mediaRecorder = null;
-  let recordedChunks = [];
-  let isRecording = false;
-  const recordBtn = document.getElementById('recordBtn');
-
-  recordBtn.addEventListener('click', () => {
-    if (!isRecording) {
-      initAudio();
-      const canvasStream = canvas.captureStream(60);
-      const tracks = [...canvasStream.getVideoTracks()];
-      if (audioDest) tracks.push(...audioDest.stream.getAudioTracks());
-
-      const combinedStream = new MediaStream(tracks);
-      const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')
-        ? 'video/mp4;codecs=avc1'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : 'video/webm';
-
-      recordedChunks = [];
-      mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType,
-        videoBitsPerSecond: 8000000 // 8 Mbps crisp 1080p
-      });
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-        const blob = new Blob(recordedChunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tether-ball-sim-${Date.now()}.${ext}`;
-        a.click();
-        URL.revokeObjectURL(url);
-        statusText.textContent = `Downloaded .${ext} video (1080×1920, no watermark)!`;
-      };
-
-      mediaRecorder.start();
-      isRecording = true;
-      recordBtn.classList.add('recording');
-      recordBtn.textContent = '■ Stop & Save Video';
-      statusText.textContent = 'Recording 1080×1920 @ 60fps...';
-    } else {
-      mediaRecorder.stop();
-      isRecording = false;
-      recordBtn.classList.remove('recording');
-      recordBtn.textContent = '● Record & Download Video';
-    }
-  });
-
-  // UI Listeners
-  elBalls.addEventListener('input', () => {
-    document.getElementById('valBalls').textContent = elBalls.value;
-    createBalls();
-  });
-  elSpeed.addEventListener('input', () => {
-    document.getElementById('valSpeed').textContent = `${parseFloat(elSpeed.value).toFixed(1)}x`;
-  });
-  elGrav.addEventListener('input', () => {
-    document.getElementById('valGrav').textContent = parseFloat(elGrav.value).toFixed(2);
-  });
-  elStrings.addEventListener('input', () => {
-    document.getElementById('valStrings').textContent = elStrings.value;
-  });
-  document.getElementById('resetBtn').addEventListener('click', createBalls);
-  document.getElementById('audioBtn').addEventListener('click', initAudio);
-
-  // Start
-  createBalls();
-  loop();
-})();
-</script>
-</body>
-</html>
+    const
